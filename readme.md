@@ -136,18 +136,18 @@ with template and version configuration, if you need JIT.
 
 ## Finished Jobs (usually tested with codes in source file)
 
-* [-] Implementation of prototype based object
-* [-] Injection of property getter and setter
-* [-] Injection of object operation
-* [-] Support of object extra info
-* [-] Basic supports for List object
-* [-] Basic supports for Text object
-* [-] Basic supports for Tuple object
-* [-] Implementation of page based memory table and region
-* [-] Implementation of value operation
-* [-] Implementation of root supports
-* [-] Implementation of field shortcuts
-* [-] Implementation of reference map (remember set)
+* [x] Implementation of prototype based object
+* [x] Injection of property getter and setter
+* [x] Injection of object operation
+* [x] Support of object extra info
+* [x] Basic supports for List object
+* [x] Basic supports for Text object
+* [x] Basic supports for Tuple object
+* [x] Implementation of page based memory table and region
+* [x] Implementation of value operation
+* [x] Implementation of root supports
+* [x] Implementation of field shortcuts
+* [x] Implementation of reference map (remember set)
 
 ## Testing Jobs (implemented without test)
 
