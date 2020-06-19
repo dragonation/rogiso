@@ -11,8 +11,6 @@ use super::base::PrimitiveType::*;
 use super::base::Symbol;
 use super::base::SymbolInfo;
 use super::base::SymbolIdGenerator;
-use super::base::SymbolRecord;
-use super::base::SymbolRecord::*;
 use super::base::SymbolScope;
 use super::base::Value;
 use super::barrier::Barrier;
