@@ -88,6 +88,9 @@ text. Within the new design:
   keys visibility
 * We can create a private scope targeting to a single class, or piece of 
   codes as real private key
+* We can create a specified scope targeting to type casting, and all 
+  value symbol in it could be regarded as caster (value of symbol could 
+  be prototype)
 
 So the symbol system is more hackable for scripting system. We use a 
 32-bit ID representing a symbol to simplify the hash map and acceleration. 
