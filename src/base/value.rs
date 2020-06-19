@@ -29,7 +29,7 @@ const YES_SUFFIX: u64 = 0x3;
 /// According to the IEEE-754 specification, there are lots of `NaN`s in the 
 /// 64-bit float ranges. We just use a special predefined `NaN` as the real 
 /// `NaN` in the value system, which make us to be able to regard the rest 
-/// `NaN`s as various values with different types within just 64-bit of data.
+/// `NaN`s as various values with different types within just a 64-bit data.
 #[derive(Copy, Clone)]
 pub struct Value {
     data: f64
