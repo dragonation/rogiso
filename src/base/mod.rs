@@ -9,5 +9,6 @@ pub use primitive_type::PrimitiveType;
 pub use symbol::Symbol;
 pub use symbol::SymbolIdGenerator;
 pub use symbol::SymbolRecord;
+pub use symbol::SymbolInfo;
 pub use symbol::SymbolScope;
 pub use value::Value;

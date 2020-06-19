@@ -10,6 +10,67 @@ use super::error::ErrorType::*;
 use super::super::util::RwLock;
 use super::value::Value;
 
+/// Symbol info for a specified symbol
+pub struct SymbolInfo {
+    symbol: Symbol,
+    symbol_scope: Arc<String>,
+    symbol_record: SymbolRecord,
+}
+
+impl SymbolInfo {
+
+    pub fn new(symbol: Symbol, symbol_scope: &Arc<SymbolScope>, symbol_record: SymbolRecord) -> SymbolInfo {
+        SymbolInfo {
+            symbol: symbol,
+            symbol_scope: symbol_scope.get_id(),
+            symbol_record: symbol_record
+        }
+    }
+
+    /// Get the symbol from the symbol info
+    pub fn get_symbol(&self) -> Symbol {
+        self.symbol
+    }
+
+    /// Get the symbol scope of the symbol
+    pub fn get_symbol_scope(&self) -> &Arc<String> {
+        &self.symbol_scope
+    }
+
+    /// Check whether the symbol is a text symbol
+    pub fn is_text_symbol(&self) -> bool {
+        match self.symbol_record {
+            SymbolRecord::TextSymbol(_) => true,
+            _ => false
+        }
+    }
+
+    /// Check whether the symbol is a value symbol
+    pub fn is_value_symbol(&self) -> bool {
+        match self.symbol_record {
+            SymbolRecord::ValueSymbol(_) => true,
+            _ => false
+        }
+    }
+
+    /// Get the specified text of the symbol if it is a text symbol
+    pub fn get_text(&self) -> Option<&Arc<String>> {
+        match &self.symbol_record {
+            SymbolRecord::TextSymbol(text) => Some(text),
+            _ => None
+        }
+    }
+
+    /// Get the specified value of the symbol if it is a value symbol
+    pub fn get_value(&self) -> Option<Value> {
+        match self.symbol_record {
+            SymbolRecord::ValueSymbol(value) => Some(value),
+            _ => None
+        }
+    }
+
+}
+
 
 pub struct SymbolIdGenerator {
     next_id: AtomicU32

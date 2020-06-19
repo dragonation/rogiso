@@ -9,6 +9,7 @@ use super::base::ErrorType::*;
 use super::base::PrimitiveType;
 use super::base::PrimitiveType::*;
 use super::base::Symbol;
+use super::base::SymbolInfo;
 use super::base::SymbolIdGenerator;
 use super::base::SymbolRecord;
 use super::base::SymbolRecord::*;
@@ -40,59 +41,6 @@ use super::util::PageItemFactory;
 use super::slot::BASE_BLACK;
 use super::slot::BASE_WHITE;
 
-
-/// Symbol info for a specified symbol
-pub struct SymbolInfo {
-    symbol: Symbol,
-    symbol_scope: Arc<String>,
-    symbol_record: SymbolRecord,
-}
-
-impl SymbolInfo {
-
-    /// Get the symbol from the symbol info
-    pub fn get_symbol(&self) -> Symbol {
-        self.symbol
-    }
-
-    /// Get the symbol scope of the symbol
-    pub fn get_symbol_scope(&self) -> Arc<String> {
-        self.symbol_scope.clone()
-    }
-
-    /// Check whether the symbol is a text symbol
-    pub fn is_text_symbol(&self) -> bool {
-        match self.symbol_record {
-            TextSymbol(_) => true,
-            _ => false
-        }
-    }
-
-    /// Check whether the symbol is a value symbol
-    pub fn is_value_symbol(&self) -> bool {
-        match self.symbol_record {
-            ValueSymbol(_) => true,
-            _ => false
-        }
-    }
-
-    /// Get the specified text of the symbol if it is a text symbol
-    pub fn get_text(&self) -> Option<Arc<String>> {
-        match &self.symbol_record {
-            TextSymbol(text) => Some(text.clone()),
-            _ => None
-        }
-    }
-
-    /// Get the specified value of the symbol if it is a value symbol
-    pub fn get_value(&self) -> Option<Value> {
-        match self.symbol_record {
-            ValueSymbol(value) => Some(value),
-            _ => None
-        }
-    }
-
-}
 
 
 pub struct RegionFactory {}
@@ -372,15 +320,12 @@ impl Isolate {
                     Ok(symbol_info) => {
                         let mut result = String::new();
                         result.push_str("<symbol:");
-                        result.push_str(&symbol_info.symbol_scope);
+                        result.push_str(symbol_info.get_symbol_scope());
                         result.push_str("#");
-                        match symbol_info.symbol_record {
-                            TextSymbol(text) => {
-                                result.push_str(&text);
-                            },
-                            ValueSymbol(_value) => {
-                                result.push_str("<value>");
-                            }
+                        if symbol_info.is_text_symbol() {
+                            result.push_str(symbol_info.get_text().unwrap())
+                        } else {
+                            result.push_str("<value>");
                         }
                         result.push_str(">");
                         return result;
@@ -1356,13 +1301,7 @@ impl Isolate {
         match self.symbol_lut.borrow().get(&symbol) {
             Some(symbol_scope) => {
                 match symbol_scope.get_symbol_record(symbol) {
-                    Some(symbol_record) => {
-                        Ok(SymbolInfo {
-                            symbol: symbol,
-                            symbol_scope: symbol_scope.get_id(),
-                            symbol_record: symbol_record
-                        })
-                    }
+                    Some(symbol_record) => Ok(SymbolInfo::new(symbol, &symbol_scope, symbol_record)),
                     None => Err(Error::new(FatalError, "Symbol not found"))
                 }
             },

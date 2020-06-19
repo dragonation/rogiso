@@ -20,11 +20,11 @@ pub use base::ErrorType;
 pub use base::PrimitiveType;
 pub use base::Value;
 pub use base::Symbol;
+pub use base::SymbolInfo;
 
 pub use collector::Collector;
 pub use context::Context;
 pub use isolate::Isolate;
-pub use isolate::SymbolInfo;
 
 pub use field_shortcuts::FieldShortcuts;
 pub use field_shortcuts::FieldTemplate;

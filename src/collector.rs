@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use super::base::Error;
 use super::base::Symbol;
+use super::base::SymbolInfo;
 use super::base::PrimitiveType;
 use super::base::Value;
 use super::barrier::Barrier;
@@ -13,7 +14,6 @@ use super::field_shortcuts::FieldToken;
 use super::internal_slot::InternalSlot;
 use super::internal_slot::ProtectedInternalSlot;
 use super::isolate::Isolate;
-use super::isolate::SymbolInfo;
 use super::root::DropListener;
 use super::root::Root;
 use super::root::WeakRoot;
