@@ -8,8 +8,8 @@ Rogiso is a module for prototype based object system with features below:
 * Implemented via pure rust language to make the runtime safe
 * High-level design for language and engine backend
 
-The module is under heavy **development and testing**, currently do not 
-use it in your production level environment and design
+The module is under heavy **development and test**, currently do not use 
+it in your production level environment and design
 
 # What are not the jobs of rogiso
 
@@ -47,7 +47,7 @@ occupied as a result.
 So 4 GiB memory can take about 16M complex objects at most, and we will 
 try to shrink the memory usage in future. 
 
-Values below is not regarded as a complex object:
+Values below are not regarded as complex objects:
 
 * undefined
 * null
@@ -72,7 +72,26 @@ the pointer is temporary which means it will be invalid after a period.
 
 # Symbol
 
-Modern script languages began to introduce symbol 
+We introduced symbol and symbol scope to extend traditional property key
+system. Usually, text key is widely used today, and ECMAScript has another
+kind of key, symbol. 
+
+After researching, we decided to extend the symbol concept. There are two
+parts in our symbol, one is symbol scope, another could be a value or a 
+text. Within the new design:
+
+* We can make a public symbol scope and all 
+  text symbols in it could be regarded as traditional text keys. 
+* We can make a symbol scope targeting script file path and all 
+  symbols in it could be regarded as private keys shared in that file. 
+* We can make a shared scope targeting multiple script files for friend 
+  keys visibility
+* We can create a private scope targeting to a single class, or piece of 
+  codes as real private key
+
+So the symbol system is more hackable for scripting system. We use a 
+32-bit ID representing a symbol to simplify the hash map and acceleration. 
+The symbol info could be resolved via API in `Isolate`.
 
 # Garbage collection
 
@@ -91,8 +110,8 @@ complex object. The pointer-like part of a value usually means the info
 to find the record on the description table. So the value may not be 
 valid if the redirection records dropped after a memory refragment. 
 
-We stored lock and gc info of the complex object on a page to keep the 
-real data of the complex object refragmentable.
+We stored lock and GC info of the complex object on a page to keep the 
+real data of the complex object no move during refragement.
 
 # Integration
 
@@ -117,40 +136,40 @@ with template and version configuration, if you need JIT.
 
 ## Finished Jobs (usually tested with codes in source file)
 
-[*] Implementation of prototype based object
-[*] Injection of property getter and setter
-[*] Injection of object operation
-[*] Support of object extra info
-[*] Basic supports for List object
-[*] Basic supports for Text object
-[*] Basic supports for Tuple object
-[*] Implementation of page based memory table and region
-[*] Implementation of value operation
-[*] Implementation of root supports
-[*] Implementation of field shortcuts
-[*] Implementation of reference map (remember set)
+* [-] Implementation of prototype based object
+* [-] Injection of property getter and setter
+* [-] Injection of object operation
+* [-] Support of object extra info
+* [-] Basic supports for List object
+* [-] Basic supports for Text object
+* [-] Basic supports for Tuple object
+* [-] Implementation of page based memory table and region
+* [-] Implementation of value operation
+* [-] Implementation of root supports
+* [-] Implementation of field shortcuts
+* [-] Implementation of reference map (remember set)
 
 ## Testing Jobs (implemented without test)
 
-[ ] Test of collector
-[ ] Concurrent object operation
+* [ ] Test of collector
+* [ ] Concurrent object operation
 
 ## Developing Jobs
 
-[ ] Make prototype field direct stored in record
-[ ] Make color based region, not isolated based
-[ ] Export the control of optimization data to Context
-[ ] Add more API for list and text
-[ ] Make the collect of memory concurrent
+* [ ] Make prototype field direct stored in record
+* [ ] Make color based region, not isolated based
+* [ ] Export the control of optimization data to Context
+* [ ] Add more API for list and text
+* [ ] Make the collect of memory concurrent
 
 ## Future Jobs
 
-[ ] Optimize the text implementation
-[ ] Optimize the list implementation
-[ ] Optimize the lock (to keep the isolate concurrent, too many locks added)
-[ ] Optimize the arc (to make the rust compiler work, too many arc added)
-[ ] Optimize the memory operation
-[ ] Optimize the collector
-[ ] Optimize the record of complex object
-[ ] Full test for the isolate
-[ ] Integrate with the self-designed rogic language engine 
+* [ ] Optimize the text implementation
+* [ ] Optimize the list implementation
+* [ ] Optimize the lock (to keep the isolate concurrent, too many locks added)
+* [ ] Optimize the arc (to make the rust compiler work, too many arc added)
+* [ ] Optimize the memory operation
+* [ ] Optimize the collector
+* [ ] Optimize the record of complex object
+* [ ] Full test for the isolate
+* [ ] Integrate with the self-designed rogic language engine 
