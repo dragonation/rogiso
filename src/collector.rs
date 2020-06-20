@@ -165,23 +165,23 @@ impl Context for CollectorContext {
         panic!("Collector context only support reference operations");
     }
 
-    fn get_own_property_ignore_slot_trap(&self, _subject: Value, _symbol: Symbol, _context: &Box<dyn Context>) -> Result<Pinned, Error> {
+    fn get_own_property_ignore_slot_trap(&self, _id: Value, _subject: Value, _symbol: Symbol, _context: &Box<dyn Context>) -> Result<Pinned, Error> {
         panic!("Collector context only support reference operations");
     }
 
-    fn set_own_property_ignore_slot_trap(&self, _subject: Value, _symbol: Symbol, _value: Value, _context: &Box<dyn Context>) -> Result<(), Error> {
+    fn set_own_property_ignore_slot_trap(&self, _id: Value, _subject: Value, _symbol: Symbol, _value: Value, _context: &Box<dyn Context>) -> Result<(), Error> {
         panic!("Collector context only support reference operations");
     }
 
-    fn delete_own_property_ignore_slot_trap(&self, _subject: Value, _symbol: Symbol, _context: &Box<dyn Context>) -> Result<(), Error> {
+    fn delete_own_property_ignore_slot_trap(&self, _id: Value, _subject: Value, _symbol: Symbol, _context: &Box<dyn Context>) -> Result<(), Error> {
         panic!("Collector context only support reference operations");
     }
 
-    fn define_own_property_ignore_slot_trap(&self, _subject: Value, _symbol: Symbol, _property_trap: Arc<dyn PropertyTrap>, _context: &Box<dyn Context>) -> Result<(), Error> {
+    fn define_own_property_ignore_slot_trap(&self, _id: Value, _subject: Value, _symbol: Symbol, _property_trap: Arc<dyn PropertyTrap>, _context: &Box<dyn Context>) -> Result<(), Error> {
         panic!("Collector context only support reference operations");
     }
 
-    fn list_own_property_symbols_ignore_slot_trap(&self, _subject: Value, _context: &Box<dyn Context>) -> Result<HashSet<Symbol>, Error> {
+    fn list_own_property_symbols_ignore_slot_trap(&self, _id: Value, _subject: Value, _context: &Box<dyn Context>) -> Result<HashSet<Symbol>, Error> {
         panic!("Collector context only support reference operations");
     }
 

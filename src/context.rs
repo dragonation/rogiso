@@ -122,6 +122,9 @@ pub trait Context {
         self.get_isolate().set_prototype(value, prototype, context)
     }
 
+    fn set_prototype_ignore_slot_trap(&self, value: Value, prototype: Value, context: &Box<dyn Context>) -> Result<(), Error> {
+        self.get_isolate().set_prototype_ignore_slot_trap(value, prototype, context)
+    }
 
     /// Set a trap for specified slot
     fn set_slot_trap(&self, value: Value, slot_trap: Arc<dyn SlotTrap>, context: &Box<dyn Context>) -> Result<(), Error> {
@@ -131,58 +134,58 @@ pub trait Context {
 
     /// Test whether a slot has own some properties
     fn has_own_property(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<bool, Error> {
-        self.get_isolate().has_own_property(subject, symbol, context)
+        self.get_isolate().has_own_property(subject, subject, symbol, context)
     }
 
     /// Get own property of a value
     fn get_own_property(&self, subject: Value, symbol: Symbol, field_token: Option<&FieldToken>, context: &Box<dyn Context>) -> Result<Pinned, Error> {
-        self.get_isolate().get_own_property(subject, symbol, field_token, context)
+        self.get_isolate().get_own_property(subject, subject, symbol, field_token, context)
     }
 
     /// Delete own property of a value
     fn delete_own_property(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
-        self.get_isolate().delete_own_property(subject, symbol, context)
+        self.get_isolate().delete_own_property(subject, subject, symbol, context)
     }
 
     /// Set own property of a value
     fn set_own_property(&self, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>) -> Result<(), Error> {
-        self.get_isolate().set_own_property(subject, symbol, value, context)
+        self.get_isolate().set_own_property(subject, subject, symbol, value, context)
     }
 
     /// Define own property of a value
     fn define_own_property(&self, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>) -> Result<(), Error> {
-        self.get_isolate().define_own_property(subject, symbol, property_trap, context)
+        self.get_isolate().define_own_property(subject, subject, symbol, property_trap, context)
     }
 
     /// List own property symbols in a value
     fn list_own_property_symbols(&self, subject: Value, context: &Box<dyn Context>) -> Result<HashSet<Symbol>, Error> {
-        self.get_isolate().list_own_property_symbols(subject, context)
+        self.get_isolate().list_own_property_symbols(subject, subject, context)
     }
 
 
     /// Get own property of a value
-    fn get_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<Pinned, Error> {
-        self.get_isolate().get_own_property_ignore_slot_trap(subject, symbol, context)
+    fn get_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<Pinned, Error> {
+        self.get_isolate().get_own_property_ignore_slot_trap(id, subject, symbol, context)
     }
 
     /// Set own property of a value
-    fn set_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>) -> Result<(), Error> {
-        self.get_isolate().set_own_property_ignore_slot_trap(subject, symbol, value, context)
+    fn set_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>) -> Result<(), Error> {
+        self.get_isolate().set_own_property_ignore_slot_trap(id, subject, symbol, value, context)
     }
 
     /// Delete own property of a value
-    fn delete_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
-        self.get_isolate().delete_own_property_ignore_slot_trap(subject, symbol, context)
+    fn delete_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
+        self.get_isolate().delete_own_property_ignore_slot_trap(id, subject, symbol, context)
     }
 
     /// Define own property of a value
-    fn define_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>) -> Result<(), Error> {
-        self.get_isolate().define_own_property_ignore_slot_trap(subject, symbol, property_trap, context)
+    fn define_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>) -> Result<(), Error> {
+        self.get_isolate().define_own_property_ignore_slot_trap(id, subject, symbol, property_trap, context)
     }
 
     /// List own property symbols in a value
-    fn list_own_property_symbols_ignore_slot_trap(&self, subject: Value, context: &Box<dyn Context>) -> Result<HashSet<Symbol>, Error> {
-        self.get_isolate().list_own_property_symbols_ignore_slot_trap(subject, context)
+    fn list_own_property_symbols_ignore_slot_trap(&self, id: Value, subject: Value, context: &Box<dyn Context>) -> Result<HashSet<Symbol>, Error> {
+        self.get_isolate().list_own_property_symbols_ignore_slot_trap(id, subject, context)
     }
 
     /// Get a specified internal slot from a value

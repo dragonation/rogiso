@@ -112,7 +112,7 @@ impl SlotTrap for TestSlotTrap2 {
         let old_prototype = {
             let _guard = self.rw_lock.lock_write();
             let old_prototype = self.prototype.get();
-            self.prototype.set(trap_info.get_parameter(0));
+            self.prototype.set(trap_info.get_parameter(1));
             old_prototype
         };
 
@@ -127,7 +127,7 @@ impl SlotTrap for TestSlotTrap2 {
                         trap_info: Box<dyn TrapInfo>, 
                         context: &Box<dyn Context>) -> Result<SlotTrapResult, Error> {
         let _guard = self.rw_lock.lock_read();
-        let symbol_value = trap_info.get_parameter(0);
+        let symbol_value = trap_info.get_parameter(1);
         match self.own_properties.borrow().get(&symbol_value.extract_symbol(Symbol::new(0))) {
             None => Ok(SlotTrapResult::Trapped(Pinned::new(context, Value::make_boolean(false))?)),
             Some(_) => Ok(SlotTrapResult::Trapped(Pinned::new(context, Value::make_boolean(true))?))
@@ -138,7 +138,7 @@ impl SlotTrap for TestSlotTrap2 {
                         trap_info: Box<dyn TrapInfo>, 
                         context: &Box<dyn Context>) -> Result<SlotTrapResult, Error> {
 
-        let symbol_value = trap_info.get_parameter(0);
+        let symbol_value = trap_info.get_parameter(1);
         let symbol = symbol_value.extract_symbol(Symbol::new(0));
 
         let property_trap = {
@@ -158,7 +158,7 @@ impl SlotTrap for TestSlotTrap2 {
             }
         };
 
-        let trap_info = context.create_trap_info(self.subject.get(), [symbol_value].to_vec(), context);
+        let trap_info = context.create_trap_info(self.subject.get(), [self.subject.get(), symbol_value].to_vec(), context);
 
         Ok(SlotTrapResult::Trapped(property_trap.get_property(trap_info, context)?))
 
@@ -168,9 +168,9 @@ impl SlotTrap for TestSlotTrap2 {
                         trap_info: Box<dyn TrapInfo>, 
                         context: &Box<dyn Context>) -> Result<SlotTrapResult, Error> {
 
-        let symbol_value = trap_info.get_parameter(0);
+        let symbol_value = trap_info.get_parameter(1);
         let symbol = symbol_value.extract_symbol(Symbol::new(0));
-        let value = trap_info.get_parameter(1);
+        let value = trap_info.get_parameter(2);
 
         let mut removes = Vec::new();
         let mut adds = Vec::new();
@@ -209,7 +209,7 @@ impl SlotTrap for TestSlotTrap2 {
                 }
             },
             Some(property_trap) => {
-                let trap_info = context.create_trap_info(self.subject.get(), [symbol_value, value].to_vec(), context);
+                let trap_info = context.create_trap_info(self.subject.get(), [self.subject.get(), symbol_value, value].to_vec(), context);
                 let (removes, adds, _, _) = property_trap.set_property(trap_info, context)?;
                 for value in adds {
                     context.add_value_reference(self.subject.get(), value)?;
@@ -227,9 +227,9 @@ impl SlotTrap for TestSlotTrap2 {
                            trap_info: Box<dyn TrapInfo>, 
                            context: &Box<dyn Context>) -> Result<SlotTrapResult, Error> {
 
-        let symbol_value = trap_info.get_parameter(0);
+        let symbol_value = trap_info.get_parameter(1);
         let symbol = symbol_value.extract_symbol(Symbol::new(0));
-        let property_trap_value = trap_info.get_parameter(1);
+        let property_trap_value = trap_info.get_parameter(2);
         let property_trap = context.extract_property_trap(property_trap_value, context)?;
 
         let mut defined = false;
@@ -281,7 +281,7 @@ impl SlotTrap for TestSlotTrap2 {
 
         let mut removes = Vec::new();
 
-        let symbol_value = trap_info.get_parameter(0);
+        let symbol_value = trap_info.get_parameter(1);
         let symbol = symbol_value.extract_symbol(Symbol::new(0));
         match self.property_traps.borrow_mut().remove(&symbol) {
             Some(property_trap) => {

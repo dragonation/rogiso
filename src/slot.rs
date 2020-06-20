@@ -477,6 +477,19 @@ impl AtomicSlot {
 
 }
 
+/// Slot prototype
+impl AtomicSlot {
+
+    pub fn get_prototype(&self) -> Value {
+        self.prototype
+    }
+
+    pub fn set_prototype(&mut self, prototype: Value) {
+        self.prototype = prototype;
+    }
+
+}
+
 /// Slot own property traps
 impl AtomicSlot {
 
@@ -696,6 +709,18 @@ impl SlotRecord {
 
     pub fn iterate_internal_slot_ids(&self) -> InternalSlotIterator {
         self.atomic_slot.iterate_internal_slot_ids()
+    }
+
+}
+
+impl SlotRecord {
+
+    pub fn get_prototype(&self) -> Value {
+        self.atomic_slot.get_prototype()
+    }
+
+    pub fn set_prototype(&mut self, prototype: Value) {
+        self.atomic_slot.set_prototype(prototype);
     }
 
 }
@@ -1177,10 +1202,103 @@ impl RegionSlot {
 
 }
 
+impl RegionSlot {
+
+    pub fn get_prototype_with_layout_guard(&self, context: &Box<dyn Context>, mut layout_guard: ReentrantLockReadGuard) -> Result<Pinned, Error> {
+
+        let (id, slot_trap, prototype) = {
+            let _guard = self.rw_lock.lock_read();
+            let record = self.record.borrow();
+            if !record.is_alive() {
+                return Err(Error::new(FatalError, "Slot not alive"));
+            }
+            let id = record.get_id()?;
+            let prototype = Pinned::new(context, record.get_prototype());
+            let slot_trap = record.get_slot_trap();
+            match slot_trap {
+                None => {
+                    return prototype;
+                },
+                Some(slot_trap) => (id, ProtectedSlotTrap::new(slot_trap, context)?, prototype)
+            }
+        };
+
+        layout_guard.unlock();
+
+        slot_trap.list_and_autorefresh_internal_referenced_values(id, context)?;
+        let trap_info = context.create_trap_info(id, vec!(id), context);
+        let result = slot_trap.get_prototype(trap_info, context)?;
+        match result {
+            Trapped(value) => Ok(value),
+            Thrown(value) => Err(Error::new(RogicError(value), "Rogic error happened")),
+            Skipped => prototype
+        }
+
+    }
+
+    pub fn set_prototype_with_layout_guard(&self, prototype: Value, context: &Box<dyn Context>, mut layout_guard: ReentrantLockReadGuard, no_redirection: bool) -> Result<(), Error> {
+
+        let (id, slot_trap) = {
+            let _guard = self.rw_lock.lock_write();
+            let mut record = self.record.borrow_mut();
+            if !record.is_alive() {
+                return Err(Error::new(FatalError, "Slot not alive"));
+            }
+            let id = record.get_id()?;
+            let slot_trap = record.get_slot_trap();
+            match slot_trap {
+                None => {
+                    record.set_prototype(prototype);
+                    return Ok(());
+                },
+                Some(slot_trap) => (id, ProtectedSlotTrap::new(slot_trap, context)?)
+            }
+        };
+
+        layout_guard.unlock();
+
+        slot_trap.list_and_autorefresh_internal_referenced_values(id, context)?;
+        let trap_info = context.create_trap_info(id, vec!(id, prototype), context);
+        let result = slot_trap.set_prototype(trap_info, context)?;
+        match result {
+            Trapped(_) => {
+                return Ok(());
+            },
+            Thrown(value) => {
+                return Err(Error::new(RogicError(value), "Rogic error happened"));
+            },
+            Skipped => {}
+        }
+
+        if no_redirection {
+            self.set_prototype_ignore_slot_trap(prototype, context)
+        } else {
+            context.set_prototype_ignore_slot_trap(id, prototype, context)
+        }
+
+    }
+
+    pub fn set_prototype_ignore_slot_trap(&self, prototype: Value, context: &Box<dyn Context>) -> Result<(), Error> {
+
+        let _guard = self.rw_lock.lock_write();
+
+        let mut record = self.record.borrow_mut();
+        if !record.is_alive() {
+            return Err(Error::new(FatalError, "Slot not alive"));
+        }
+
+        record.set_prototype(prototype);
+
+        Ok(())
+
+    }
+
+}
+
 /// Slot own properties
 impl RegionSlot {
 
-    pub fn has_own_property(&self, symbol: Symbol, context: &Box<dyn Context>) -> Result<bool, Error> {
+    pub fn has_own_property_with_layout_guard(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>, mut layout_guard: ReentrantLockReadGuard) -> Result<bool, Error> {
 
         let (id, slot_trap, has_property_trap) = {
             let _guard = self.rw_lock.lock_read();
@@ -1199,9 +1317,11 @@ impl RegionSlot {
             }
         };
 
+        layout_guard.unlock();
+
         let symbol_value = Value::make_symbol(symbol);
         slot_trap.list_and_autorefresh_internal_referenced_values(id, context)?;
-        let trap_info = context.create_trap_info(id, [symbol_value].to_vec(), context);
+        let trap_info = context.create_trap_info(id, vec!(subject, symbol_value), context);
         let result = slot_trap.has_own_property(trap_info, context)?;
         match result {
             Trapped(value) => Ok(value.as_boolean()),
@@ -1211,7 +1331,7 @@ impl RegionSlot {
 
     }
 
-    pub fn get_own_property_with_layout_guard<'a>(&self, symbol: Symbol, field_token: Option<&FieldToken>, context: &Box<dyn Context>, mut layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool) -> Result<Pinned, Error> {
+    pub fn get_own_property_with_layout_guard<'a>(&self, subject: Value, symbol: Symbol, field_token: Option<&FieldToken>, context: &Box<dyn Context>, mut layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool) -> Result<Pinned, Error> {
 
         if let Some(field_token) = field_token {
             if field_token.get_symbol() != symbol {
@@ -1249,7 +1369,7 @@ impl RegionSlot {
                         let property_trap = property_trap.iter().next().unwrap();
                         if property_trap.is_simple_field() {
                             let symbol_value = Value::make_symbol(symbol);
-                            let trap_info = context.create_trap_info(id, vec!(symbol_value), context);
+                            let trap_info = context.create_trap_info(id, vec!(subject, symbol_value), context);
                             let field_value = property_trap.get_property(trap_info, context)?;
                             let origin_value = field_value.get_origin_value();
                             let new_value = context.resolve_real_value(origin_value)?;
@@ -1277,7 +1397,7 @@ impl RegionSlot {
         let symbol_value = Value::make_symbol(symbol);
         if let Some(slot_trap) = slot_trap {
             slot_trap.list_and_autorefresh_internal_referenced_values(id, context)?;
-            let trap_info = context.create_trap_info(id, vec!(symbol_value), context);
+            let trap_info = context.create_trap_info(id, vec!(subject, symbol_value), context);
             let result = slot_trap.get_own_property(trap_info, context)?;
             match result {
                 Trapped(value) => { return Ok(value); },
@@ -1287,14 +1407,14 @@ impl RegionSlot {
         }
 
         if no_redirection {
-            self.get_own_property_ignore_slot_trap(symbol, context)
+            self.get_own_property_ignore_slot_trap(subject, symbol, context)
         } else {
-            context.get_own_property_ignore_slot_trap(id, symbol, context)
+            context.get_own_property_ignore_slot_trap(id, subject, symbol, context)
         }
 
     }
 
-    pub fn get_own_property_ignore_slot_trap(&self, symbol: Symbol, context: &Box<dyn Context>) -> Result<Pinned, Error> {
+    pub fn get_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<Pinned, Error> {
 
         let (id, property_trap) = {
             let _guard = self.rw_lock.lock_read();
@@ -1316,7 +1436,7 @@ impl RegionSlot {
 
         property_trap.list_and_autorefresh_referenced_values(id, context)?;
 
-        let trap_info = context.create_trap_info(id, vec!(symbol_value), context);
+        let trap_info = context.create_trap_info(id, vec!(subject, symbol_value), context);
 
         property_trap.get_property(trap_info, context)
 
@@ -1358,10 +1478,8 @@ impl RegionSlot {
     }
 
     pub fn set_own_property_with_layout_guard<'a>(&self, 
-        symbol: Symbol, 
-        value: Value, 
-        context: &Box<dyn Context>, 
-        mut layout_guard: ReentrantLockReadGuard<'a>, 
+        subject: Value, symbol: Symbol, value: Value, 
+        context: &Box<dyn Context>, mut layout_guard: ReentrantLockReadGuard<'a>, 
         no_redirection: bool) -> Result<(), Error> {
 
         let value = context.resolve_real_value(value)?;
@@ -1397,7 +1515,7 @@ impl RegionSlot {
                         if let Some(field_shortcuts) = field_shortcuts {
                             if property_trap.is_simple_field() {
                                 let symbol_value = Value::make_symbol(symbol);
-                                let trap_info = context.create_trap_info(id, [symbol_value, value].to_vec(), context);
+                                let trap_info = context.create_trap_info(id, vec!(subject, symbol_value, value), context);
                                 let (removed_values, added_values, removed_symbols, added_symbols) = property_trap.set_property(trap_info, context)?;
                                 for value in added_values {
                                     context.add_value_reference(id, value)?;
@@ -1431,7 +1549,7 @@ impl RegionSlot {
         let symbol_value = Value::make_symbol(symbol);
         if let Some(slot_trap) = slot_trap {
             slot_trap.list_and_autorefresh_internal_referenced_values(id, context)?;
-            let trap_info = context.create_trap_info(id, [symbol_value, value].to_vec(), context);
+            let trap_info = context.create_trap_info(id, vec!(subject, symbol_value, value), context);
             let result = slot_trap.set_own_property(trap_info, context)?;
             match result {
                 Trapped(_) => { return Ok(()); },
@@ -1441,16 +1559,15 @@ impl RegionSlot {
         }
 
         if no_redirection {
-            self.set_own_property_ignore_slot_trap(symbol, value, context)
+            self.set_own_property_ignore_slot_trap(subject, symbol, value, context)
         } else {
-            context.set_own_property_ignore_slot_trap(id, symbol, value, context)
+            context.set_own_property_ignore_slot_trap(id, subject, symbol, value, context)
         }
 
     }
 
     pub fn set_own_property_ignore_slot_trap(&self, 
-        symbol: Symbol, 
-        value: Value, 
+        subject: Value, symbol: Symbol, value: Value, 
         context: &Box<dyn Context>) -> Result<(), Error> {
 
         let value = context.resolve_real_value(value)?;
@@ -1484,7 +1601,7 @@ impl RegionSlot {
                     if let Some(field_shortcuts) = field_shortcuts {
                         if property_trap.is_simple_field() {
                             let symbol_value = Value::make_symbol(symbol);
-                            let trap_info = context.create_trap_info(id, [symbol_value, value].to_vec(), context);
+                            let trap_info = context.create_trap_info(id, vec!(subject, symbol_value, value), context);
                             let (removed_values, added_values, removed_symbols, added_symbols) = property_trap.set_property(trap_info, context)?;
                             for value in added_values {
                                 context.add_value_reference(id, value)?;
@@ -1511,7 +1628,7 @@ impl RegionSlot {
 
         let symbol_value = Value::make_symbol(symbol);
 
-        let trap_info = context.create_trap_info(id, [symbol_value, value].to_vec(), context);
+        let trap_info = context.create_trap_info(id, vec!(subject, symbol_value, value), context);
         let (removed_values, added_values, removed_symbols, added_symbols) = property_trap.set_property(trap_info, context)?;
         for value in added_values {
             context.add_value_reference(id, value)?;
@@ -1541,7 +1658,7 @@ impl RegionSlot {
     }
 
     pub fn define_own_property_with_layout_guard<'a>(&self, 
-        symbol: Symbol, 
+        subject: Value, symbol: Symbol, 
         property_trap: Arc<dyn PropertyTrap>, 
         context: &Box<dyn Context>, 
         mut layout_guard: ReentrantLockReadGuard<'a>, 
@@ -1569,7 +1686,7 @@ impl RegionSlot {
                 if let Some(field_shortcuts) = field_shortcuts {
                     if property_trap.is_simple_field() {
                         let symbol_value = Value::make_symbol(symbol);
-                        let trap_info = context.create_trap_info(id, [symbol_value].to_vec(), context);
+                        let trap_info = context.create_trap_info(id, vec!(subject, symbol_value), context);
                         let value = property_trap.get_property(trap_info, context)?;
                         field_shortcuts.set_symbol_field(symbol, value.get_value());
                     } else {
@@ -1601,7 +1718,7 @@ impl RegionSlot {
         if let Some(slot_trap) = slot_trap {
             slot_trap.list_and_autorefresh_internal_referenced_values(id, context)?;
             let trap_value = context.make_property_trap_value(property_trap.clone(), context)?;
-            let trap_info = context.create_trap_info(id, [symbol_value, trap_value].to_vec(), context);
+            let trap_info = context.create_trap_info(id, vec!(subject, symbol_value, trap_value), context);
             let result = slot_trap.define_own_property(trap_info, context)?;
             match result {
                 Trapped(_) => { return Ok(()); },
@@ -1611,15 +1728,15 @@ impl RegionSlot {
         }
 
         if no_redirection {
-            self.define_own_property_ignore_slot_trap(symbol, property_trap, context)
+            self.define_own_property_ignore_slot_trap(subject, symbol, property_trap, context)
         } else {
-            context.define_own_property_ignore_slot_trap(id, symbol, property_trap, context)
+            context.define_own_property_ignore_slot_trap(id, subject, symbol, property_trap, context)
         }
 
     }
 
     pub fn define_own_property_ignore_slot_trap(&self, 
-        symbol: Symbol, 
+        subject: Value, symbol: Symbol, 
         property_trap: Arc<dyn PropertyTrap>, 
         context: &Box<dyn Context>) -> Result<(), Error> {
 
@@ -1642,7 +1759,7 @@ impl RegionSlot {
         if let Some(field_shortcuts) = field_shortcuts {
             if property_trap.is_simple_field() {
                 let symbol_value = Value::make_symbol(symbol);
-                let trap_info = context.create_trap_info(id, [symbol_value].to_vec(), context);
+                let trap_info = context.create_trap_info(id, vec!(subject, symbol_value), context);
                 let value = property_trap.get_property(trap_info, context)?;
                 field_shortcuts.set_symbol_field(symbol, value.get_value());
             } else {
@@ -1666,7 +1783,7 @@ impl RegionSlot {
     }
 
     pub fn delete_own_property_with_layout_guard<'a>(&self, 
-        symbol: Symbol, 
+        subject: Value, symbol: Symbol, 
         context: &Box<dyn Context>, 
         mut layout_guard: ReentrantLockReadGuard<'a>,
         no_redirection: bool) -> Result<(), Error> {
@@ -1710,7 +1827,7 @@ impl RegionSlot {
         let symbol_value = Value::make_symbol(symbol);
         if let Some(slot_trap) = slot_trap {
             slot_trap.list_and_autorefresh_internal_referenced_values(id, context)?;
-            let trap_info = context.create_trap_info(id, [symbol_value].to_vec(), context);
+            let trap_info = context.create_trap_info(id, vec!(subject, symbol_value), context);
             let result = slot_trap.delete_own_property(trap_info, context)?;
             match result {
                 Trapped(_) => { return Ok(()); },
@@ -1720,14 +1837,14 @@ impl RegionSlot {
         }
 
         if no_redirection {
-            self.delete_own_property_ignore_slot_trap(symbol, context)
+            self.delete_own_property_ignore_slot_trap(subject, symbol, context)
         } else {
-            context.delete_own_property_ignore_slot_trap(id, symbol, context)
+            context.delete_own_property_ignore_slot_trap(id, subject, symbol, context)
         }
 
     }
 
-    pub fn delete_own_property_ignore_slot_trap(&self, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
+    pub fn delete_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
 
         let _guard = self.rw_lock.lock_write();
         let mut record = self.record.borrow_mut();
@@ -1758,7 +1875,7 @@ impl RegionSlot {
 
     }
 
-    pub fn list_own_property_symbols_with_layout_guard<'a>(&self, context: &Box<dyn Context>, mut layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool) -> Result<Vec<Symbol>, Error> {
+    pub fn list_own_property_symbols_with_layout_guard<'a>(&self, subject: Value, context: &Box<dyn Context>, mut layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool) -> Result<Vec<Symbol>, Error> {
 
         let (id, slot_trap) = {
             let _guard = self.rw_lock.lock_read();
@@ -1783,7 +1900,7 @@ impl RegionSlot {
         layout_guard.unlock();
 
         slot_trap.list_and_autorefresh_internal_referenced_values(id, context)?;
-        let trap_info = context.create_trap_info(id, [].to_vec(), context);
+        let trap_info = context.create_trap_info(id, vec!(subject), context);
         let result = slot_trap.list_own_property_symbols(trap_info, context)?;
         match result {
             Trapped(list_value) => { 
@@ -1802,10 +1919,10 @@ impl RegionSlot {
         }
 
         if no_redirection {
-            self.list_own_property_symbols_ignore_slot_trap(context)
+            self.list_own_property_symbols_ignore_slot_trap(subject, context)
         } else {
             let mut symbols = Vec::new();
-            for symbol in context.list_own_property_symbols_ignore_slot_trap(id, context)?.iter() {
+            for symbol in context.list_own_property_symbols_ignore_slot_trap(id, subject, context)?.iter() {
                 symbols.push(*symbol);
             }
             Ok(symbols)
@@ -1813,7 +1930,7 @@ impl RegionSlot {
 
     }
 
-    pub fn list_own_property_symbols_ignore_slot_trap(&self, _context: &Box<dyn Context>) -> Result<Vec<Symbol>, Error> {
+    pub fn list_own_property_symbols_ignore_slot_trap(&self, subject: Value, _context: &Box<dyn Context>) -> Result<Vec<Symbol>, Error> {
 
         let _guard = self.rw_lock.lock_read();
         let record = self.record.borrow();
@@ -2491,22 +2608,24 @@ fn test_region_slot_own_properties() -> Result<(), Error> {
     region_slot.mark_as_alive();
     region_slot.overwrite_primitive_type(Object)?;
 
+    let id = region_slot.get_id()?;
+
     let symbol = Symbol::new(1);
-    assert!(!region_slot.has_own_property(symbol, &context)?);
-    assert_eq!(region_slot.get_own_property_with_layout_guard(symbol, None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_undefined());
+    assert!(!region_slot.has_own_property_with_layout_guard(id, symbol, &context, layout_token.lock_read())?);
+    assert_eq!(region_slot.get_own_property_with_layout_guard(id, symbol, None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_undefined());
 
-    region_slot.set_own_property_with_layout_guard(symbol, Value::make_integer(100), &context, layout_token.lock_read(), true)?;
-    assert!(region_slot.has_own_property(symbol, &context)?);
+    region_slot.set_own_property_with_layout_guard(id, symbol, Value::make_integer(100), &context, layout_token.lock_read(), true)?;
+    assert!(region_slot.has_own_property_with_layout_guard(id, symbol, &context, layout_token.lock_read())?);
 
-    assert_eq!(region_slot.get_own_property_with_layout_guard(symbol, None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_integer(100));
+    assert_eq!(region_slot.get_own_property_with_layout_guard(id, symbol, None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_integer(100));
 
     let symbol_2 = Symbol::new(2);
 
-    region_slot.define_own_property_with_layout_guard(symbol_2, Arc::new(FieldPropertyTrap::new(Value::make_boolean(true))), &context, layout_token.lock_read(), true)?;
-    assert_eq!(region_slot.get_own_property_with_layout_guard(symbol_2, None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_boolean(true));
+    region_slot.define_own_property_with_layout_guard(id, symbol_2, Arc::new(FieldPropertyTrap::new(Value::make_boolean(true))), &context, layout_token.lock_read(), true)?;
+    assert_eq!(region_slot.get_own_property_with_layout_guard(id, symbol_2, None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_boolean(true));
 
     let mut symbols = HashSet::new();
-    for value in region_slot.list_own_property_symbols_with_layout_guard(&context, layout_token.lock_read(), true)? {
+    for value in region_slot.list_own_property_symbols_with_layout_guard(id, &context, layout_token.lock_read(), true)? {
         symbols.insert(value);
     }
     assert_eq!(symbols.len(), 2);
@@ -2514,20 +2633,19 @@ fn test_region_slot_own_properties() -> Result<(), Error> {
     assert!(symbols.get(&symbol_2).is_some());
     assert!(symbols.get(&Symbol::new(3)).is_none());
 
-    region_slot.delete_own_property_with_layout_guard(symbol, &context, layout_token.lock_read(), true)?;
+    region_slot.delete_own_property_with_layout_guard(id, symbol, &context, layout_token.lock_read(), true)?;
 
     let mut symbols = HashSet::new();
-    for value in region_slot.list_own_property_symbols_with_layout_guard(&context, layout_token.lock_read(), true)? {
+    for value in region_slot.list_own_property_symbols_with_layout_guard(id, &context, layout_token.lock_read(), true)? {
         symbols.insert(value);
     }
     assert_eq!(symbols.len(), 1);
     assert!(symbols.get(&symbol).is_none());
     assert!(symbols.get(&symbol_2).is_some());
-    assert!(!region_slot.has_own_property(symbol, &context)?);
-    assert_eq!(region_slot.get_own_property_with_layout_guard(symbol, None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_undefined());
-
-    region_slot.delete_own_property_with_layout_guard(symbol_2, &context, layout_token.lock_read(), true)?;
-    assert_eq!(region_slot.list_own_property_symbols_with_layout_guard(&context, layout_token.lock_read(), true)?.len(), 0);
+    assert!(!region_slot.has_own_property_with_layout_guard(id, symbol, &context, layout_token.lock_read())?);
+    assert_eq!(region_slot.get_own_property_with_layout_guard(id, symbol, None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_undefined());
+    region_slot.delete_own_property_with_layout_guard(id, symbol_2, &context, layout_token.lock_read(), true)?;
+    assert_eq!(region_slot.list_own_property_symbols_with_layout_guard(id, &context, layout_token.lock_read(), true)?.len(), 0);
 
     Ok(())
 }
@@ -2545,6 +2663,8 @@ fn test_region_slot_own_property_with_field_shortcuts() -> Result<(), Error> {
     region_slot.mark_as_alive();
     region_slot.overwrite_primitive_type(Object)?;
 
+    let id = region_slot.get_id()?;
+
     let field_template = Arc::new(FieldTemplate::new(1));
 
     field_template.add_symbol(Symbol::new(1))?;
@@ -2553,34 +2673,34 @@ fn test_region_slot_own_property_with_field_shortcuts() -> Result<(), Error> {
 
     let field_token = field_shortcuts.get_field_token(Symbol::new(1)).unwrap();
 
-    region_slot.set_own_property_with_layout_guard(Symbol::new(1), Value::make_float(43.0), &context, layout_token.lock_read(), true)?;
-    region_slot.set_own_property_with_layout_guard(Symbol::new(2), Value::make_float(63.0), &context, layout_token.lock_read(), true)?;
+    region_slot.set_own_property_with_layout_guard(id, Symbol::new(1), Value::make_float(43.0), &context, layout_token.lock_read(), true)?;
+    region_slot.set_own_property_with_layout_guard(id, Symbol::new(2), Value::make_float(63.0), &context, layout_token.lock_read(), true)?;
 
     assert!(field_token.get_field(&field_shortcuts).is_none());
 
     region_slot.set_field_shortcuts(field_shortcuts.clone())?;
 
-    assert_eq!(region_slot.get_own_property_with_layout_guard(Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(43.0));
-    assert_eq!(region_slot.get_own_property_with_layout_guard(Symbol::new(2), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(63.0));
+    assert_eq!(region_slot.get_own_property_with_layout_guard(id, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(43.0));
+    assert_eq!(region_slot.get_own_property_with_layout_guard(id, Symbol::new(2), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(63.0));
 
     let field_token = field_shortcuts.get_field_token(Symbol::new(1)).unwrap();
 
     assert_eq!(field_token.get_field(&field_shortcuts).unwrap(), Value::make_float(43.0));
 
-    assert_eq!(region_slot.get_own_property_with_layout_guard(Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(43.0));
+    assert_eq!(region_slot.get_own_property_with_layout_guard(id, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(43.0));
 
-    region_slot.set_own_property_with_layout_guard(Symbol::new(1), Value::make_float(53.0), &context, layout_token.lock_read(), true)?;
+    region_slot.set_own_property_with_layout_guard(id, Symbol::new(1), Value::make_float(53.0), &context, layout_token.lock_read(), true)?;
 
     let field_token = field_shortcuts.get_field_token(Symbol::new(1)).unwrap();
 
     assert_eq!(field_token.get_field(&field_shortcuts).unwrap(), Value::make_float(53.0));
-    assert_eq!(region_slot.get_own_property_with_layout_guard(Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
-    assert_eq!(region_slot.get_own_property_with_layout_guard(Symbol::new(1), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
+    assert_eq!(region_slot.get_own_property_with_layout_guard(id, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
+    assert_eq!(region_slot.get_own_property_with_layout_guard(id, Symbol::new(1), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
 
     region_slot.clear_field_shortcuts()?;
     let field_token = field_shortcuts.get_field_token(Symbol::new(1)).unwrap();
-    assert_eq!(region_slot.get_own_property_with_layout_guard(Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
-    assert!(region_slot.get_own_property_with_layout_guard(Symbol::new(2), Some(&field_token), &context, layout_token.lock_read(), true).is_err());
+    assert_eq!(region_slot.get_own_property_with_layout_guard(id, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
+    assert!(region_slot.get_own_property_with_layout_guard(id, Symbol::new(2), Some(&field_token), &context, layout_token.lock_read(), true).is_err());
 
     Ok(())
 

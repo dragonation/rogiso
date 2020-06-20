@@ -952,48 +952,100 @@ impl Region {
 
 }
 
+impl Region {
+
+    pub fn get_prototype_with_layout_guard(&self, subject: Value, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard, no_redirection: bool) -> Result<Pinned, Error> {
+
+        let record = {
+
+            let _guard = self.rw_lock.lock_read();
+
+            let slot = self.ensure_slot_available(subject)?;
+
+            &self.slots[slot as usize]
+
+        };
+
+        record.get_prototype_with_layout_guard(context, layout_guard)
+
+    }
+
+    pub fn set_prototype_with_layout_guard(&self, subject: Value, prototype: Value, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard, no_redirection: bool) -> Result<(), Error> {
+
+        let record = {
+
+            let _guard = self.rw_lock.lock_read();
+
+            let slot = self.ensure_slot_available(subject)?;
+
+            &self.slots[slot as usize]
+
+        };
+
+        record.set_prototype_with_layout_guard(prototype, context, layout_guard, no_redirection)
+
+    }
+
+    pub fn set_prototype_ignore_slot_trap(&self, subject: Value, prototype: Value, context: &Box<dyn Context>) -> Result<(), Error> {
+
+        let record = {
+
+            let _guard = self.rw_lock.lock_read();
+
+            let slot = self.ensure_slot_available(subject)?;
+
+            &self.slots[slot as usize]
+
+        };
+
+        record.set_prototype_ignore_slot_trap(prototype, context)
+
+    }
+
+}
+
 // Region slot own properties
 impl Region {
 
-    pub fn get_own_property_with_layout_guard(&self, subject: Value, symbol: Symbol, field_token: Option<&FieldToken>, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard, no_redirection: bool) -> Result<Pinned, Error> {
+    pub fn get_own_property_with_layout_guard(&self, id: Value, subject: Value, symbol: Symbol, field_token: Option<&FieldToken>, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard, no_redirection: bool) -> Result<Pinned, Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.get_own_property_with_layout_guard(symbol, field_token, context, layout_guard, no_redirection)
+        record.get_own_property_with_layout_guard(subject, symbol, field_token, context, layout_guard, no_redirection)
 
     }
 
-    pub fn get_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<Pinned, Error> {
+    pub fn get_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<Pinned, Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.get_own_property_ignore_slot_trap(symbol, context)
+        record.get_own_property_ignore_slot_trap(subject, symbol, context)
 
     }
 
-    pub fn overwrite_own_property(&self, subject: Value, symbol: Symbol, value: Value) -> Result<(Vec<Value>, Vec<Symbol>, Vec<Value>, Vec<Symbol>), Error> {
+    pub fn overwrite_own_property(&self, id: Value, symbol: Symbol, value: Value) -> Result<(Vec<Value>, Vec<Symbol>, Vec<Value>, Vec<Symbol>), Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
@@ -1003,147 +1055,147 @@ impl Region {
 
     }
 
-    pub fn set_own_property_with_layout_guard<'a>(&self, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool) -> Result<(), Error> {
+    pub fn set_own_property_with_layout_guard<'a>(&self, id: Value, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool) -> Result<(), Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.set_own_property_with_layout_guard(symbol, value, context, layout_guard, no_redirection)
+        record.set_own_property_with_layout_guard(subject, symbol, value, context, layout_guard, no_redirection)
  
     }
 
-    pub fn set_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>) -> Result<(), Error> {
+    pub fn set_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>) -> Result<(), Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.set_own_property_ignore_slot_trap(symbol, value, context)
+        record.set_own_property_ignore_slot_trap(subject, symbol, value, context)
  
     }
 
-    pub fn define_own_property_with_layout_guard<'a>(&self, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool) -> Result<(), Error> {
+    pub fn define_own_property_with_layout_guard<'a>(&self, id: Value, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool) -> Result<(), Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.define_own_property_with_layout_guard(symbol, property_trap, context, layout_guard, no_redirection)
+        record.define_own_property_with_layout_guard(subject, symbol, property_trap, context, layout_guard, no_redirection)
         
     }
 
-    pub fn define_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>) -> Result<(), Error> {
+    pub fn define_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>) -> Result<(), Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.define_own_property_ignore_slot_trap(symbol, property_trap, context)
+        record.define_own_property_ignore_slot_trap(subject, symbol, property_trap, context)
         
     }
 
-    pub fn delete_own_property_with_layout_guard<'a>(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool) -> Result<(), Error> {
+    pub fn delete_own_property_with_layout_guard<'a>(&self, id: Value, subject: Value, symbol: Symbol, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool) -> Result<(), Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.delete_own_property_with_layout_guard(symbol, context, layout_guard, no_redirection)
+        record.delete_own_property_with_layout_guard(subject, symbol, context, layout_guard, no_redirection)
         
     }
 
-    pub fn delete_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
+    pub fn delete_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.delete_own_property_ignore_slot_trap(symbol, context)
+        record.delete_own_property_ignore_slot_trap(subject, symbol, context)
         
     }
 
-    pub fn has_own_property(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>)  -> Result<bool, Error> {
+    pub fn has_own_property_with_layout_guard(&self, id: Value, subject: Value, symbol: Symbol, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard)  -> Result<bool, Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.has_own_property(symbol, context)
+        record.has_own_property_with_layout_guard(subject, symbol, context, layout_guard)
         
     }
 
-    pub fn list_own_property_symbols_with_layout_guard<'a>(&self, subject: Value, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool)  -> Result<Vec<Symbol>, Error> {
+    pub fn list_own_property_symbols_with_layout_guard<'a>(&self, id: Value, subject: Value, context: &Box<dyn Context>, layout_guard: ReentrantLockReadGuard<'a>, no_redirection: bool)  -> Result<Vec<Symbol>, Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.list_own_property_symbols_with_layout_guard(context, layout_guard, no_redirection)
+        record.list_own_property_symbols_with_layout_guard(subject, context, layout_guard, no_redirection)
         
     }
 
-    pub fn list_own_property_symbols_ignore_slot_trap(&self, subject: Value, context: &Box<dyn Context>)  -> Result<Vec<Symbol>, Error> {
+    pub fn list_own_property_symbols_ignore_slot_trap(&self, id: Value, subject: Value, context: &Box<dyn Context>)  -> Result<Vec<Symbol>, Error> {
 
         let record = {
 
             let _guard = self.rw_lock.lock_read();
 
-            let slot = self.ensure_slot_available(subject)?;
+            let slot = self.ensure_slot_available(id)?;
 
             &self.slots[slot as usize]
 
         };
 
-        record.list_own_property_symbols_ignore_slot_trap(context)
+        record.list_own_property_symbols_ignore_slot_trap(subject, context)
         
     }
 
@@ -1523,25 +1575,25 @@ fn test_region_slot_trap() -> Result<(), Error> {
 
     let slot = region.gain_slot(Object)?;
 
-    region.set_own_property_with_layout_guard(slot, Symbol::new(1), Value::make_float(1.0), &context, layout_token.lock_read(), true)?;
+    region.set_own_property_with_layout_guard(slot, slot, Symbol::new(1), Value::make_float(1.0), &context, layout_token.lock_read(), true)?;
 
     let slot_trap: Arc<dyn SlotTrap> = Arc::new(TestSlotTrap2::new(slot));
 
     region.set_slot_trap(slot, slot_trap, &context)?;
 
-    region.set_own_property_with_layout_guard(slot, Symbol::new(2), Value::make_float(32.0), &context, layout_token.lock_read(), true)?;
+    region.set_own_property_with_layout_guard(slot, slot, Symbol::new(2), Value::make_float(32.0), &context, layout_token.lock_read(), true)?;
     let test_property_trap: Arc<dyn PropertyTrap> = Arc::new(TestPropertyTrap::new(Value::make_float(64.0)));
-    region.define_own_property_with_layout_guard(slot, Symbol::new(3), test_property_trap, &context, layout_token.lock_read(), true)?;
+    region.define_own_property_with_layout_guard(slot, slot, Symbol::new(3), test_property_trap, &context, layout_token.lock_read(), true)?;
 
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(1), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(1.0));
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(2), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(32.0));
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(3), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(64.0));
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(1), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(1.0));
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(2), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(32.0));
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(3), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(64.0));
 
     region.clear_slot_trap(slot, &context)?;
 
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(1), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(1.0));
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(2), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_undefined());
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(3), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_undefined());
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(1), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(1.0));
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(2), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_undefined());
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(3), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_undefined());
 
     Ok(())
 
@@ -1560,9 +1612,9 @@ fn test_region_own_property() -> Result<(), Error> {
 
     let slot = region.gain_slot(Object)?;
 
-    region.set_own_property_with_layout_guard(slot, Symbol::new(1), Value::make_float(43.0), &context, layout_token.lock_read(), true)?;
+    region.set_own_property_with_layout_guard(slot, slot, Symbol::new(1), Value::make_float(43.0), &context, layout_token.lock_read(), true)?;
 
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(1), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(43.0));
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(1), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(43.0));
 
     Ok(())
     
@@ -1587,8 +1639,8 @@ fn test_region_field_shortcuts() -> Result<(), Error> {
     let field_shortcuts = Arc::new(FieldShortcuts::new(field_template.clone()));
 
     let field_token = field_shortcuts.get_field_token(Symbol::new(1)).unwrap();
-    region.set_own_property_with_layout_guard(slot, Symbol::new(1), Value::make_float(43.0), &context, layout_token.lock_read(), true)?;
-    region.set_own_property_with_layout_guard(slot, Symbol::new(2), Value::make_float(63.0), &context, layout_token.lock_read(), true)?;
+    region.set_own_property_with_layout_guard(slot, slot, Symbol::new(1), Value::make_float(43.0), &context, layout_token.lock_read(), true)?;
+    region.set_own_property_with_layout_guard(slot, slot, Symbol::new(2), Value::make_float(63.0), &context, layout_token.lock_read(), true)?;
 
     assert!(field_token.get_field(&field_shortcuts).is_none());
 
@@ -1596,21 +1648,21 @@ fn test_region_field_shortcuts() -> Result<(), Error> {
 
     assert!(&Arc::ptr_eq(&region.get_field_shortcuts(slot)?.unwrap(), &field_shortcuts));
 
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(43.0));
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(2), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(63.0));
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(43.0));
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(2), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(63.0));
 
     assert_eq!(field_token.get_field(&field_shortcuts).unwrap(), Value::make_float(43.0));
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(43.0));
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(43.0));
 
-    region.set_own_property_with_layout_guard(slot, Symbol::new(1), Value::make_float(53.0), &context, layout_token.lock_read(), true)?;
+    region.set_own_property_with_layout_guard(slot, slot, Symbol::new(1), Value::make_float(53.0), &context, layout_token.lock_read(), true)?;
 
     assert_eq!(field_token.get_field(&field_shortcuts).unwrap(), Value::make_float(53.0));
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(1), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(1), None, &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
 
     region.clear_field_shortcuts(slot)?;
-    assert_eq!(region.get_own_property_with_layout_guard(slot, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
-    assert!(region.get_own_property_with_layout_guard(slot, Symbol::new(2), Some(&field_token), &context, layout_token.lock_read(), true).is_err());
+    assert_eq!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(1), Some(&field_token), &context, layout_token.lock_read(), true)?.get_value(), Value::make_float(53.0));
+    assert!(region.get_own_property_with_layout_guard(slot, slot, Symbol::new(2), Some(&field_token), &context, layout_token.lock_read(), true).is_err());
 
     Ok(())
 
@@ -1662,7 +1714,7 @@ fn test_region_seal() -> Result<(), Error> {
     assert!(region.set_internal_slot(slot, 0, internal_slot.clone(), &context).is_err());
     assert!(region.clear_internal_slot(slot, 0, &context).is_err());
 
-    assert!(region.set_own_property_with_layout_guard(slot, Symbol::new(1), Value::make_float(43.0), &context, layout_token.lock_read(), true).is_err());
+    assert!(region.set_own_property_with_layout_guard(slot, slot, Symbol::new(1), Value::make_float(43.0), &context, layout_token.lock_read(), true).is_err());
 
     let slot_trap: Arc<dyn SlotTrap> = Arc::new(TestSlotTrap2::new(slot));
 

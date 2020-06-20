@@ -1607,7 +1607,7 @@ impl Isolate {
         };
 
         match region {
-            Some(region) => region.get_own_property_with_layout_guard(slot, self.prototype_symbol, None, context, layout_guard, false),
+            Some(region) => region.get_own_property_with_layout_guard(slot, slot, self.prototype_symbol, None, context, layout_guard, false),
             None => Err(Error::new(FatalError, "Region of slot not found"))
         }
 
@@ -1642,7 +1642,7 @@ impl Isolate {
                     }
                 };
                 match region {
-                    Some(region) => region.set_own_property_with_layout_guard(slot, self.prototype_symbol, prototype, context, layout_guard, false),
+                    Some(region) => region.set_prototype_with_layout_guard(slot, prototype, context, layout_guard, false),
                     None => Err(Error::new(FatalError, "Region of slot not found"))
                 }
             }
@@ -1650,6 +1650,26 @@ impl Isolate {
 
     }
 
+    pub fn set_prototype_ignore_slot_trap(&self, slot: Value, prototype: Value, context: &Box<dyn Context>) -> Result<(), Error> {
+
+        let layout_token = context.get_slot_layout_token();
+
+        let _guard = layout_token.lock_read();
+
+        let region_id = slot.get_region_id()?;
+        let region = {
+            let _guard = self.region_rw_lock.lock_read();
+            match self.regions.borrow().get(region_id as usize) {
+                Some(region) => Some(region.clone()),
+                None => None
+            }
+        };
+        match region {
+            Some(region) => region.set_prototype_ignore_slot_trap(slot, prototype, context),
+            None => Err(Error::new(FatalError, "Region of slot not found"))
+        }
+
+    }
 }
 
 // Isolate value slot trap management
@@ -2107,15 +2127,15 @@ impl Isolate {
 impl Isolate {
 
     /// Get own property of a value for a symbol
-    pub fn get_own_property(&self, subject: Value, symbol: Symbol, field_token: Option<&FieldToken>, context: &Box<dyn Context>) -> Result<Pinned, Error> {
+    pub fn get_own_property(&self, id: Value, subject: Value, symbol: Symbol, field_token: Option<&FieldToken>, context: &Box<dyn Context>) -> Result<Pinned, Error> {
         
         let layout_token = context.get_slot_layout_token();
 
         let layout_guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        match subject.get_primitive_type() {
+        match id.get_primitive_type() {
             Undefined => { return Err(Error::new(VisitingUndefinedProperty, "Undefined has no properties")); },
             Null => { return Err(Error::new(VisitingNullProperty, "Null has no properties")); },
             Boolean => { return Pinned::new(context, Value::make_undefined()); },
@@ -2128,7 +2148,7 @@ impl Isolate {
             Object => {} 
         }
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2137,21 +2157,21 @@ impl Isolate {
             }
         };
         match region {
-            Some(region) => region.get_own_property_with_layout_guard(subject, symbol, field_token, context, layout_guard, false),
+            Some(region) => region.get_own_property_with_layout_guard(id, subject, symbol, field_token, context, layout_guard, false),
             None => Err(Error::new(FatalError, "Region of slot not found"))
         }
 
     }
 
-    pub fn get_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<Pinned, Error> {
+    pub fn get_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<Pinned, Error> {
  
         let layout_token = context.get_slot_layout_token();
 
         let _guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2161,22 +2181,22 @@ impl Isolate {
         };
 
         match region {
-            Some(region) => region.get_own_property_ignore_slot_trap(subject, symbol, context),
+            Some(region) => region.get_own_property_ignore_slot_trap(id, subject, symbol, context),
             None => Err(Error::new(FatalError, "Region of slot not found"))
         }
 
     }
 
     /// Set own property of a value for a symbol
-    pub fn set_own_property(&self, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>) -> Result<(), Error> {
+    pub fn set_own_property(&self, id: Value, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>) -> Result<(), Error> {
 
         let layout_token = context.get_slot_layout_token();
 
         let layout_guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        match subject.get_primitive_type() {
+        match id.get_primitive_type() {
             Undefined => { return Err(Error::new(MutatingUndefinedProperty, "Undefined is immutable")); },
             Null => { return Err(Error::new(MutatingNullProperty, "Null is immutable")); },
             Boolean => { return Err(Error::new(MutatingSealedProperty, "Boolean is immutable")); },
@@ -2189,7 +2209,7 @@ impl Isolate {
             Object => {} 
         }
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2198,22 +2218,22 @@ impl Isolate {
             }
         };
         match region {
-            Some(region) => region.set_own_property_with_layout_guard(subject, symbol, value, context, layout_guard, false),
+            Some(region) => region.set_own_property_with_layout_guard(id, subject, symbol, value, context, layout_guard, false),
             None => Err(Error::new(FatalError, "Region of slot not found"))
         }
 
     }
 
     /// Set own property of a value for a symbol
-    pub fn set_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>) -> Result<(), Error> {
+    pub fn set_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, value: Value, context: &Box<dyn Context>) -> Result<(), Error> {
 
         let layout_token = context.get_slot_layout_token();
 
         let _guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2222,22 +2242,22 @@ impl Isolate {
             }
         };
         match region {
-            Some(region) => region.set_own_property_ignore_slot_trap(subject, symbol, value, context),
+            Some(region) => region.set_own_property_ignore_slot_trap(id, subject, symbol, value, context),
             None => Err(Error::new(FatalError, "Region of slot not found"))
         }
 
     }
 
     /// Define own property of a value for a symbol
-    pub fn define_own_property(&self, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>) -> Result<(), Error> {
+    pub fn define_own_property(&self, id: Value, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>) -> Result<(), Error> {
         
         let layout_token = context.get_slot_layout_token();
 
         let layout_guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        match subject.get_primitive_type() {
+        match id.get_primitive_type() {
             Undefined => { return Err(Error::new(MutatingUndefinedProperty, "Undefined is immutable")); },
             Null => { return Err(Error::new(MutatingNullProperty, "Null is immutable")); },
             Boolean => { return Err(Error::new(MutatingSealedProperty, "Boolean is immutable")); },
@@ -2250,7 +2270,7 @@ impl Isolate {
             Object => {} 
         }
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2259,22 +2279,22 @@ impl Isolate {
             }
         };
         match region {
-            Some(region) => region.define_own_property_with_layout_guard(subject, symbol, property_trap, context, layout_guard, false),
+            Some(region) => region.define_own_property_with_layout_guard(id, subject, symbol, property_trap, context, layout_guard, false),
             None => Err(Error::new(FatalError, "Region of slot not found"))
         }
 
     }
 
     /// Define own property of a value for a symbol
-    pub fn define_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>) -> Result<(), Error> {
+    pub fn define_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, property_trap: Arc<dyn PropertyTrap>, context: &Box<dyn Context>) -> Result<(), Error> {
         
         let layout_token = context.get_slot_layout_token();
 
         let _guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2283,22 +2303,22 @@ impl Isolate {
             }
         };
         match region {
-            Some(region) => region.define_own_property_ignore_slot_trap(subject, symbol, property_trap, context),
+            Some(region) => region.define_own_property_ignore_slot_trap(id, subject, symbol, property_trap, context),
             None => Err(Error::new(FatalError, "Region of slot not found"))
         }
 
     }
 
     /// Delete own property from a value for a symbol
-    pub fn delete_own_property(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
+    pub fn delete_own_property(&self, id: Value, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
  
         let layout_token = context.get_slot_layout_token();
 
         let layout_guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        match subject.get_primitive_type() {
+        match id.get_primitive_type() {
             Undefined => { return Err(Error::new(MutatingUndefinedProperty, "Undefined is immutable")); },
             Null => { return Err(Error::new(MutatingNullProperty, "Null is immutable")); },
             Boolean => { return Err(Error::new(MutatingSealedProperty, "Boolean is immutable")); },
@@ -2311,7 +2331,7 @@ impl Isolate {
             Object => {}
         }
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2320,22 +2340,22 @@ impl Isolate {
             }
         };
         match region {
-            Some(region) => region.delete_own_property_with_layout_guard(subject, symbol, context, layout_guard, false),
+            Some(region) => region.delete_own_property_with_layout_guard(id, subject, symbol, context, layout_guard, false),
             None => Err(Error::new(FatalError, "Region of slot not found"))
         }
 
     }
 
     /// Delete own property from a value for a symbol
-    pub fn delete_own_property_ignore_slot_trap(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
+    pub fn delete_own_property_ignore_slot_trap(&self, id: Value, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<(), Error> {
  
         let layout_token = context.get_slot_layout_token();
 
         let _guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2344,22 +2364,22 @@ impl Isolate {
             }
         };
         match region {
-            Some(region) => region.delete_own_property_ignore_slot_trap(subject, symbol, context),
+            Some(region) => region.delete_own_property_ignore_slot_trap(id, subject, symbol, context),
             None => Err(Error::new(FatalError, "Region of slot not found"))
         }
 
     }
 
     /// Check whether an own property of a value for a symbol exists
-    pub fn has_own_property(&self, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<bool, Error> {
+    pub fn has_own_property(&self, id: Value, subject: Value, symbol: Symbol, context: &Box<dyn Context>) -> Result<bool, Error> {
 
         let layout_token = context.get_slot_layout_token();
 
-        let _guard = layout_token.lock_read();
+        let layout_guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        match subject.get_primitive_type() {
+        match id.get_primitive_type() {
             Undefined => { return Err(Error::new(VisitingUndefinedProperty, "Undefined has no properties")); },
             Null => { return Err(Error::new(VisitingNullProperty, "Null has no properties")); },
             Boolean => { return Ok(false); },
@@ -2372,7 +2392,7 @@ impl Isolate {
             Object => {}
         }
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2381,22 +2401,22 @@ impl Isolate {
             }
         };
         match region {
-            Some(region) => region.has_own_property(subject, symbol, context),
+            Some(region) => region.has_own_property_with_layout_guard(id, subject, symbol, context, layout_guard),
             None => Err(Error::new(FatalError, "Region of slot not found"))
         }
 
     }
 
     /// List own property symbols of a value
-    pub fn list_own_property_symbols(&self, subject: Value, context: &Box<dyn Context>) -> Result<HashSet<Symbol>, Error> {
+    pub fn list_own_property_symbols(&self, id: Value, subject: Value, context: &Box<dyn Context>) -> Result<HashSet<Symbol>, Error> {
 
         let layout_token = context.get_slot_layout_token();
 
         let layout_guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        match subject.get_primitive_type() {
+        match id.get_primitive_type() {
             Undefined => { return Err(Error::new(VisitingUndefinedProperty, "Undefined has no properties")); },
             Null => { return Err(Error::new(VisitingNullProperty, "Null has no properties")); },
             Boolean => { return Ok(HashSet::new()); },
@@ -2409,7 +2429,7 @@ impl Isolate {
             Object =>{} 
         }
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2421,7 +2441,7 @@ impl Isolate {
         match region {
             Some(region) => {
                 let mut hash_set = HashSet::new();
-                for value in region.list_own_property_symbols_with_layout_guard(subject, context, layout_guard, false)?.iter() {
+                for value in region.list_own_property_symbols_with_layout_guard(id, subject, context, layout_guard, false)?.iter() {
                     hash_set.insert(*value);
                 }
                 Ok(hash_set)
@@ -2432,15 +2452,15 @@ impl Isolate {
     }
 
     /// List own property symbols of a value
-    pub fn list_own_property_symbols_ignore_slot_trap(&self, subject: Value, context: &Box<dyn Context>) -> Result<HashSet<Symbol>, Error> {
+    pub fn list_own_property_symbols_ignore_slot_trap(&self, id: Value, subject: Value, context: &Box<dyn Context>) -> Result<HashSet<Symbol>, Error> {
 
         let layout_token = context.get_slot_layout_token();
 
         let _guard = layout_token.lock_read();
 
-        let subject = self.resolve_real_value(subject, layout_token)?;
+        let id = self.resolve_real_value(id, layout_token)?;
 
-        let region_id = subject.get_region_id()?;
+        let region_id = id.get_region_id()?;
         let region = {
             let _guard = self.region_rw_lock.lock_read();
             match self.regions.borrow().get(region_id as usize) {
@@ -2452,7 +2472,7 @@ impl Isolate {
         match region {
             Some(region) => {
                 let mut hash_set = HashSet::new();
-                for value in region.list_own_property_symbols_ignore_slot_trap(subject, context)?.iter() {
+                for value in region.list_own_property_symbols_ignore_slot_trap(id, subject, context)?.iter() {
                     hash_set.insert(*value);
                 }
                 Ok(hash_set)
@@ -2472,7 +2492,7 @@ impl Isolate {
 
         let layout_token = context.get_slot_layout_token();
 
-        let layout_guard = layout_token.lock_read();
+        let _guard = layout_token.lock_read();
 
         let subject = self.resolve_real_value(subject, layout_token)?;
 
@@ -2491,32 +2511,12 @@ impl Isolate {
 
         let mut hash_set = HashSet::new();
 
-        if subject.is_slotted() {
-            let region_id = subject.get_region_id()?;
-            let region = {
-                let _guard = self.region_rw_lock.lock_read();
-                match self.regions.borrow().get(region_id as usize) {
-                    Some(region) => Some(region.clone()),
-                    None => None
-                }
-            };
-            match region {
-                Some(region) => {
-                    for value in region.list_own_property_symbols_with_layout_guard(subject, context, layout_guard, false)? {
-                        hash_set.insert(value);
-                    }
-                },
-                None => {
-                    return Err(Error::new(FatalError, "Region of slot not found"));
-                }
-            }
-        }
-
-        let prototype = self.get_prototype(subject, context)?;
-        if !prototype.is_nil() {
-            for value in self.list_property_symbols(prototype.get_value(), context)?.iter() {
+        let mut prototype = subject;
+        while !prototype.is_nil() {
+            for value in self.list_own_property_symbols(prototype, subject, context)?.iter() {
                 hash_set.insert(*value);
             }
+            prototype = self.get_prototype(prototype, context)?.get_value();
         }
 
         Ok(hash_set)
@@ -2545,87 +2545,50 @@ impl Isolate {
             Object => {} 
         }
 
-        let region_id = subject.get_region_id()?;
-        let region = {
-            let _guard = self.region_rw_lock.lock_read();
-            match self.regions.borrow().get(region_id as usize) {
-                Some(region) => Some(region.clone()),
-                None => None
+        let mut prototype = subject;
+        while !prototype.is_nil() {
+            if self.has_own_property(prototype, subject, symbol, context)? {
+                return Ok(true);
             }
-        };
-        match region {
-            Some(region) => {
-                if region.has_own_property(subject, symbol, context)? {
-                    return Ok(true);
-                }
-            },
-            None => {
-                return Err(Error::new(FatalError, "Region of slot not found"));
-            }
-        }
+            prototype = self.get_prototype(prototype, context)?.get_value();
+        } 
 
-        let prototype = self.get_prototype(subject, context)?;
-        if !prototype.is_nil() {
-            self.has_property(prototype.get_value(), symbol, context)
-        } else {
-            Ok(false)
-        }
+        Ok(false)
 
     }
     
     /// Get property of a value for a symbol
     pub fn get_property(&self, subject: Value, symbol: Symbol, field_token: Option<&FieldToken>, context: &Box<dyn Context>) -> Result<Pinned, Error> {
 
-        {
+        let layout_token = context.get_slot_layout_token();
 
-            let layout_token = context.get_slot_layout_token();
+        let _guard = layout_token.lock_read();
 
-            let layout_guard = layout_token.lock_read();
+        let subject = self.resolve_real_value(subject, layout_token)?;
 
-            let subject = self.resolve_real_value(subject, layout_token)?;
-
-            match subject.get_primitive_type() {
-                Undefined => { return Err(Error::new(VisitingUndefinedProperty, "Undefined has no properties")); },
-                Null => { return Err(Error::new(VisitingNullProperty, "Null has no properties")); },
-                Boolean => {},
-                Integer => {},
-                Float => {},
-                Symbol => {},
-                Text => {},
-                List => {},
-                Tuple => {},
-                Object => {} 
-            }
-
-            let region_id = subject.get_region_id()?;
-            let region = {
-                let _guard = self.region_rw_lock.lock_read();
-                match self.regions.borrow().get(region_id as usize) {
-                    Some(region) => Some(region.clone()),
-                    None => None
-                }
-            };
-
-            match region {
-                Some(region) => {
-                    let value = region.get_own_property_with_layout_guard(subject, symbol, field_token, context, layout_guard, false)?;
-                    if !value.is_undefined() {
-                        return Ok(value);
-                    }
-                },
-                None => {
-                    return Err(Error::new(FatalError, "Region of slot not found"));
-                }
-            }
-
+        match subject.get_primitive_type() {
+            Undefined => { return Err(Error::new(VisitingUndefinedProperty, "Undefined has no properties")); },
+            Null => { return Err(Error::new(VisitingNullProperty, "Null has no properties")); },
+            Boolean => {},
+            Integer => {},
+            Float => {},
+            Symbol => {},
+            Text => {},
+            List => {},
+            Tuple => {},
+            Object => {} 
         }
 
-        let prototype = self.get_prototype(subject, context)?;
-        if !prototype.is_nil() {
-            self.get_property(prototype.get_value(), symbol, field_token, context)
-        } else {
-            Pinned::new(context, Value::make_undefined())
-        }
+        let mut prototype = subject;
+        while !prototype.is_nil() {
+            let value = self.get_own_property(prototype, subject, symbol, field_token, context)?;
+            if !value.is_undefined() {
+                return Ok(value);
+            }
+            prototype = self.get_prototype(prototype, context)?.get_value();
+        } 
+        
+        Pinned::new(context, Value::make_undefined())
 
     }
 
@@ -2931,7 +2894,7 @@ fn test_isolate_slot_snapshot() -> Result<(), Error> {
 
     let symbol = isolate.get_text_symbol("test", "test");
 
-    isolate.set_own_property(value_2, symbol, value_4, &context)?;
+    isolate.set_own_property(value_2, value_2, symbol, value_4, &context)?;
 
     isolate.move_value_out_from_nursery(value, &layout_token)?;
     isolate.recycle_slot(value, &context)?;
@@ -2940,7 +2903,7 @@ fn test_isolate_slot_snapshot() -> Result<(), Error> {
     assert!(!isolate.is_direct_value_alive(value_4, &context)?);
     assert!(isolate.is_direct_value_occupied(value_4, &context)?);
     assert_eq!(isolate.resolve_real_value(value_4, &layout_token)?, value_5);
-    assert_eq!(isolate.get_own_property(value_2, symbol, None, &context)?.get_value(), value_5);
+    assert_eq!(isolate.get_own_property(value_2, value_2, symbol, None, &context)?.get_value(), value_5);
     assert!(!isolate.is_direct_value_occupied(value_4, &context)?);
 
     Ok(())
@@ -2986,22 +2949,22 @@ fn test_isolate_own_properties() -> Result<(), Error> {
 
     let symbol = isolate.get_text_symbol("test", "test");
 
-    isolate.set_own_property(value, symbol, Value::make_float(3.14), &context)?;
+    isolate.set_own_property(value, value, symbol, Value::make_float(3.14), &context)?;
 
-    assert_eq!(isolate.get_own_property(value, symbol, None, &context)?.get_value(), Value::make_float(3.14));
+    assert_eq!(isolate.get_own_property(value, value, symbol, None, &context)?.get_value(), Value::make_float(3.14));
 
-    let symbols = isolate.list_own_property_symbols(value, &context)?;
+    let symbols = isolate.list_own_property_symbols(value, value, &context)?;
     assert_eq!(symbols.len(), 2);
     assert!(symbols.get(&isolate.get_prototype_symbol()).is_some());
     assert!(symbols.get(&symbol).is_some());
 
-    isolate.delete_own_property(value, symbol, &context)?;
+    isolate.delete_own_property(value, value, symbol, &context)?;
 
-    let symbols = isolate.list_own_property_symbols(value, &context)?;
+    let symbols = isolate.list_own_property_symbols(value, value, &context)?;
     assert_eq!(symbols.len(), 1);
     assert!(symbols.get(&isolate.get_prototype_symbol()).is_some());
 
-    assert_eq!(isolate.get_own_property(value, symbol, None, &context)?.get_value(), Value::make_undefined());
+    assert_eq!(isolate.get_own_property(value, value, symbol, None, &context)?.get_value(), Value::make_undefined());
 
     Ok(())
 
@@ -3025,17 +2988,17 @@ fn test_isolate_properties() -> Result<(), Error> {
 
     let symbol = isolate.get_text_symbol("test", "test");
 
-    isolate.set_own_property(prototype, symbol, Value::make_float(3.14), &context)?;
+    isolate.set_own_property(prototype, prototype, symbol, Value::make_float(3.14), &context)?;
 
     assert_eq!(isolate.get_property(value, symbol, None, &context)?.get_value(), Value::make_float(3.14));
-    assert_eq!(isolate.get_own_property(value, symbol, None, &context)?.get_value(), Value::make_undefined());
+    assert_eq!(isolate.get_own_property(value, value, symbol, None, &context)?.get_value(), Value::make_undefined());
 
     let symbols = isolate.list_property_symbols(value, &context)?;
     assert_eq!(symbols.len(), 2);
     assert!(symbols.get(&isolate.get_prototype_symbol()).is_some());
     assert!(symbols.get(&symbol).is_some());
 
-    let symbols = isolate.list_own_property_symbols(value, &context)?;
+    let symbols = isolate.list_own_property_symbols(value, value, &context)?;
     assert_eq!(symbols.len(), 1);
     assert!(symbols.get(&isolate.get_prototype_symbol()).is_some());
 

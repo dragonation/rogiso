@@ -45,7 +45,7 @@ impl PropertyTrap for TestPropertyTrap {
         let _guard = self.rw_lock.lock_write();
 
         let old_value = self.value.get();
-        let value = trap_info.get_parameter(1);
+        let value = trap_info.get_parameter(2);
         self.value.replace(value);
 
         if old_value != value {

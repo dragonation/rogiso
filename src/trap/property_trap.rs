@@ -168,11 +168,11 @@ impl PropertyTrap for FieldPropertyTrap {
         let _guard = self.rw_lock.lock_write();
 
         let old_value = self.value.get();
-        let value = trap_info.get_parameter(1);
+        let value = trap_info.get_parameter(2);
         self.value.replace(value);
 
         if old_value != value {
-            Ok(([old_value].to_vec(), [value].to_vec(), Vec::new(), Vec::new()))
+            Ok((vec!(old_value), vec!(value), Vec::new(), Vec::new()))
         } else {
             Ok((Vec::new(), Vec::new(), Vec::new(), Vec::new()))
         }
